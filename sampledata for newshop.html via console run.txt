@@ -1,0 +1,263 @@
+async function generateSampleData() {
+    console.log("Starting to generate sample data...");
+
+    // Helper function to get a random item from an array
+    const getRandomItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    // --- Data Definitions ---
+    const customerNames = ["Ahmed Ali", "Bilal Khan", "Fatima Zahra", "Ayesha Malik", "Usman Tariq", "Zainab Faisal", "Hassan Raza", "Sana Imran", "Ali Murtaza", "Maria Qureshi", "Fahad Siddiqui", "Sadia Ahmed", "Kamran Aslam", "Nida Yasir", "Imran Jutt", "Rabia anjum", "Tariq Aziz", "Saima Noor", "Waqas Younis", "Aqsa Nadeem"];
+    const supplierNames = ["Punjab Wholesalers", "Sindh Traders", "Khyber General Store", "Balochistan Supplies", "Gilgit Logistics", "Kashmiri Goods", "National Foods Ltd", "Metro Cash & Carry", "Imtiaz Super Market", "Al-Fatah Wholesalers", "Madina Traders", "Pak Goods Co", "United Suppliers", "Friends Corporation", "Data Ganj Baksh Traders", "Rehmat Trading", "Sialkot Exporters", "Faisalabad Textiles", "Gujranwala Metals", "Quetta Dry Fruits"];
+    const productData = [
+        { name: "Basmati Rice 1kg", category: "Groceries", p: 250, s: 280 },
+        { name: "Sugar 1kg", category: "Groceries", p: 140, s: 150 },
+        { name: "Cooking Oil 1L", category: "Groceries", p: 550, s: 580 },
+        { name: "Tea Bags (100s)", category: "Beverages", p: 400, s: 450 },
+        { name: "Milk 1L", category: "Dairy", p: 180, s: 200 },
+        { name: "Yogurt 500g", category: "Dairy", p: 120, s: 135 },
+        { name: "All-Purpose Flour 1kg", category: "Groceries", p: 130, s: 145 },
+        { name: "Lentils (Daal Chana) 1kg", category: "Groceries", p: 280, s: 310 },
+        { name: "Salt 800g", category: "Groceries", p: 50, s: 60 },
+        { name: "Red Chilli Powder 100g", category: "Spices", p: 90, s: 110 },
+        { name: "Turmeric Powder 100g", category: "Spices", p: 80, s: 100 },
+        { name: "Soap Bar", category: "Toiletries", p: 70, s: 85 },
+        { name: "Shampoo 180ml", category: "Toiletries", p: 250, s: 280 },
+        { name: "Toothpaste 150g", category: "Toiletries", p: 150, s: 170 },
+        { name: "Washing Powder 1kg", category: "Household", p: 300, s: 330 },
+        { name: "Dishwash Liquid 500ml", category: "Household", p: 180, s: 200 },
+        { name: "Biscuits (Family Pack)", category: "Snacks", p: 100, s: 120 },
+        { name: "Juice 1L", category: "Beverages", p: 220, s: 250 },
+        { name: "Notebook", category: "Stationery", p: 60, s: 80 },
+        { name: "Ball Point Pen", category: "Stationery", p: 20, s: 25 },
+    ];
+    const incomeCategories = ["Rent", "Service Charges", "Misc Income"];
+    const expenseCategories = ["Utilities", "Salaries", "Rent", "Transportation", "Shop Supplies", "Marketing"];
+
+    try {
+        // --- Clear Existing Data (Optional) ---
+        if (confirm("Do you want to clear all existing data before adding new sample data?")) {
+            console.log("Clearing all existing data...");
+            const tx = db.transaction(Object.values(STORES), 'readwrite');
+            for (const storeName of Object.values(STORES)) {
+                await promise(tx.objectStore(storeName).clear());
+            }
+            await promise(tx.done);
+            console.log("All data cleared.");
+            // Re-initialize essential settings and categories
+            await addObject(STORES.SETTINGS, { id: 1, shopName: 'My Sample Shop', shopPhone: '03001234567', shopAddress: 'Main Bazar, Bannu' });
+            await initializeDefaultCategories();
+        }
+
+
+        // --- 1. Create Categories ---
+        console.log("Creating income and expense categories...");
+        for (const cat of incomeCategories) {
+            try { await addObject(STORES.CATEGORIES, { name: cat, type: 'income' }); } catch (e) { console.warn(e); }
+        }
+        for (const cat of expenseCategories) {
+            try { await addObject(STORES.CATEGORIES, { name: cat, type: 'expense' }); } catch (e) { console.warn(e); }
+        }
+        await loadCategories('income');
+        await loadCategories('expense');
+        console.log("Categories created.");
+
+        // --- 2. Create Customers ---
+        console.log("Creating 20 customers...");
+        for (let i = 0; i < 20; i++) {
+            await saveEntity('customer', {
+                id: null,
+                name: customerNames[i],
+                phone: `03${Math.floor(100000000 + Math.random() * 900000000)}`,
+                address: `House #${i + 1}, Sector ${getRandomItem(['A', 'B', 'C'])}, Bannu`
+            });
+        }
+        console.log("Customers created.");
+
+        // --- 3. Create Suppliers ---
+        console.log("Creating 20 suppliers...");
+        for (let i = 0; i < 20; i++) {
+            await saveEntity('supplier', {
+                id: null,
+                name: supplierNames[i],
+                phone: `03${Math.floor(100000000 + Math.random() * 900000000)}`,
+                address: `${i + 1}-B, Industrial Area, Bannu`
+            });
+        }
+        console.log("Suppliers created.");
+
+        // --- 4. Create Products ---
+        console.log("Creating 20 products...");
+        for (const p of productData) {
+            await saveProduct({
+                id: null,
+                name: p.name,
+                category: p.category,
+                sku: `SKU-${Math.floor(10000 + Math.random() * 90000)}`,
+                salePrice: p.s,
+                purchasePrice: p.p,
+                quantity: Math.floor(50 + Math.random() * 150),
+                lowStockThreshold: 10
+            });
+        }
+        console.log("Products created.");
+
+        // --- 5. Create Purchases ---
+        console.log("Creating 20 purchase records...");
+        const suppliersList = await getAllObjects(STORES.SUPPLIERS);
+        const productsList = await getAllObjects(STORES.PRODUCTS);
+
+        for (let i = 0; i < 20; i++) {
+            purchaseItems = []; // Reset for each purchase
+            const supplierId = getRandomItem(suppliersList).id;
+            const numItems = Math.floor(1 + Math.random() * 5);
+
+            for (let j = 0; j < numItems; j++) {
+                const product = getRandomItem(productsList);
+                purchaseItems.push({
+                    productId: product.id,
+                    name: product.name,
+                    quantity: Math.floor(10 + Math.random() * 40),
+                    price: product.purchasePrice
+                });
+            }
+
+            const totalAmount = purchaseItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
+            const paymentStatus = getRandomItem(['paid', 'credit', 'partially_paid']);
+            let amountPaid = 0;
+            if (paymentStatus === 'paid') amountPaid = totalAmount;
+            if (paymentStatus === 'partially_paid') amountPaid = Math.floor(totalAmount * (0.2 + Math.random() * 0.6));
+
+            const purchaseDate = new Date();
+            purchaseDate.setDate(purchaseDate.getDate() - Math.floor(Math.random() * 30));
+
+            // Mock the form submission by directly calling the logic inside completePurchase
+            const transaction = db.transaction(Object.values(STORES), 'readwrite');
+            try {
+                const purchaseId = await addObject(STORES.PURCHASES, { supplierId, date: purchaseDate.toISOString().split('T')[0], totalAmount, paymentStatus, amountPaid }, transaction);
+                for (const item of purchaseItems) {
+                    await addObject(STORES.PURCHASE_ITEMS, { purchaseId, productId: item.productId, quantity: item.quantity, unitPrice: item.price }, transaction);
+                    const p = await getObject(STORES.PRODUCTS, item.productId, transaction);
+                    p.quantity += item.quantity;
+                    await updateObject(STORES.PRODUCTS, p, transaction);
+                }
+                await addObject(STORES.TRANSACTIONS, { entityId: supplierId, entityType: 'supplier', date: purchaseDate.toISOString().split('T')[0], type: 'credit', amount: totalAmount, description: `Purchase #${purchaseId}` }, transaction);
+                if (amountPaid > 0) {
+                    await addObject(STORES.TRANSACTIONS, { entityId: supplierId, entityType: 'supplier', date: purchaseDate.toISOString().split('T')[0], type: 'debit', amount: amountPaid, description: `Payment for Purchase #${purchaseId}` }, transaction);
+                }
+                await updateEntityBalance(supplierId, 'supplier', transaction);
+                const expenseCategory = (await getAllObjects(STORES.CATEGORIES, 'name_type', IDBKeyRange.only(['Purchases', 'expense']), transaction))?.[0];
+                if (expenseCategory) {
+                    await addObject(STORES.EXPENSES, { date: purchaseDate.toISOString().split('T')[0], amount: totalAmount, categoryId: expenseCategory.id, description: `Purchase #${purchaseId}`, supplierId: supplierId }, transaction);
+                }
+                await promise(transaction.done);
+            } catch (err) {
+                transaction.abort();
+                console.error("Failed to create sample purchase:", err);
+            }
+        }
+        console.log("Purchases created.");
+
+
+        // --- 6. Create Sales ---
+        console.log("Creating 20 sale records...");
+        const customersList = await getAllObjects(STORES.CUSTOMERS);
+
+        for (let i = 0; i < 20; i++) {
+            saleItems = []; // Reset for each sale
+            const customerId = getRandomItem([null, ...customersList.map(c => c.id)]); // Allow cash sales
+            const numItems = Math.floor(1 + Math.random() * 4);
+
+            for (let j = 0; j < numItems; j++) {
+                const product = getRandomItem(productsList.filter(p => p.quantity > 5)); // Only sell items in stock
+                if (!product) continue;
+                saleItems.push({
+                    productId: product.id,
+                    name: product.name,
+                    quantity: Math.floor(1 + Math.random() * 5),
+                    price: product.salePrice
+                });
+            }
+            if (saleItems.length === 0) continue;
+
+            const totalAmount = saleItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
+            const paymentStatus = customerId ? getRandomItem(['paid', 'credit', 'partially_paid']) : 'paid';
+            let amountPaid = 0;
+            if (paymentStatus === 'paid') amountPaid = totalAmount;
+            if (paymentStatus === 'partially_paid') amountPaid = Math.floor(totalAmount * (0.2 + Math.random() * 0.6));
+
+            const saleDate = new Date();
+            saleDate.setDate(saleDate.getDate() - Math.floor(Math.random() * 30));
+
+            // Mock the form submission by directly calling the logic inside completeSale
+            const transaction = db.transaction(Object.values(STORES), 'readwrite');
+            try {
+                const saleId = await addObject(STORES.SALES, { customerId, date: saleDate.toISOString().split('T')[0], totalAmount, paymentStatus, amountPaid }, transaction);
+                for (const item of saleItems) {
+                    await addObject(STORES.SALE_ITEMS, { saleId, productId: item.productId, quantity: item.quantity, unitPrice: item.price }, transaction);
+                    const p = await getObject(STORES.PRODUCTS, item.productId, transaction);
+                    p.quantity -= item.quantity;
+                    await updateObject(STORES.PRODUCTS, p, transaction);
+                }
+                if (customerId) {
+                    await addObject(STORES.TRANSACTIONS, { entityId: customerId, entityType: 'customer', date: saleDate.toISOString().split('T')[0], type: 'debit', amount: totalAmount, description: `Sale Invoice #${saleId}` }, transaction);
+                    if (amountPaid > 0) {
+                        await addObject(STORES.TRANSACTIONS, { entityId: customerId, entityType: 'customer', date: saleDate.toISOString().split('T')[0], type: 'credit', amount: amountPaid, description: `Payment for Invoice #${saleId}` }, transaction);
+                    }
+                    await updateEntityBalance(customerId, 'customer', transaction);
+                }
+                const incomeCategory = (await getAllObjects(STORES.CATEGORIES, 'name_type', IDBKeyRange.only(['Sales', 'income']), transaction))?.[0];
+                if (incomeCategory) {
+                    await addObject(STORES.INCOME, { date: saleDate.toISOString().split('T')[0], amount: totalAmount, categoryId: incomeCategory.id, description: `Sale Invoice #${saleId}` }, transaction);
+                }
+                await promise(transaction.done);
+            } catch (err) {
+                transaction.abort();
+                console.error("Failed to create sample sale:", err);
+            }
+        }
+        console.log("Sales created.");
+
+        // --- 7. Create Income & Expenses ---
+        console.log("Creating 20 income and 20 expense entries...");
+        const incomeCats = await getAllObjects(STORES.CATEGORIES, 'type', 'income');
+        const expenseCats = await getAllObjects(STORES.CATEGORIES, 'type', 'expense');
+
+        for (let i = 0; i < 20; i++) {
+            const incomeDate = new Date();
+            incomeDate.setDate(incomeDate.getDate() - Math.floor(Math.random() * 30));
+            await addObject(STORES.INCOME, {
+                date: incomeDate.toISOString().split('T')[0],
+                categoryId: getRandomItem(incomeCats).id,
+                amount: Math.floor(1000 + Math.random() * 9000),
+                description: `Misc income entry #${i + 1}`
+            });
+
+            const expenseDate = new Date();
+            expenseDate.setDate(expenseDate.getDate() - Math.floor(Math.random() * 30));
+            await addObject(STORES.EXPENSES, {
+                date: expenseDate.toISOString().split('T')[0],
+                categoryId: getRandomItem(expenseCats).id,
+                amount: Math.floor(500 + Math.random() * 5000),
+                description: `Misc expense entry #${i + 1}`
+            });
+        }
+        console.log("Income and Expenses created.");
+
+        // --- Final Refresh ---
+        console.log("All sample data generated. Refreshing views...");
+        await updateDashboard();
+        await loadEntities('customer');
+        await loadEntities('supplier');
+        await loadProducts();
+        await loadSales();
+        await loadPurchases();
+        await loadAccountingEntries();
+        alert("Sample data has been successfully added to the application!");
+
+    } catch (error) {
+        console.error("An error occurred during sample data generation:", error);
+        alert("An error occurred. Check the console for details.");
+    }
+}
+
+// To run, call this function from the console:
+generateSampleData();

@@ -285,8 +285,27 @@
         function formatCurrency(amount) {
             return `Rs ${parseFloat(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         }
+
+        /**
+         * Formats a date string for display.
+         * Handles both full ISO strings (from old data) and YYYY-MM-DD strings (new data).
+         * @param {string} dateString The date string from the database.
+         * @returns {string} A formatted date or time string.
+         */
         function formatDate(dateString) {
-            return new Date(dateString).toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true });
+            if (!dateString) return 'No Date';
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return 'Invalid Date';
+
+            // Check if the original string contained time info (like 'T' or ':')
+            // This makes it backward compatible with old sale records.
+            if (dateString.includes('T') || dateString.includes(':')) {
+                // It's likely an old record with time, so show the time
+                return date.toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true });
+            } else {
+                // It's a new record (YYYY-MM-DD), just show the date to avoid showing a misleading time
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }
         }
 
         let toastTimer;
@@ -393,7 +412,8 @@
                 const totalAmount = product.salePrice * quantity;
                 const saleData = {
                     customerId,
-                    date: new Date().toISOString(),
+                    // FIX: Changed date format to YYYY-MM-DD to be compatible with the main application.
+                    date: new Date().toISOString().split('T')[0],
                     totalAmount,
                     paymentStatus: 'paid',
                     amountPaid: totalAmount
@@ -408,10 +428,8 @@
                 if (incomeCategory) await addObject(STORES.INCOME, { date: saleData.date, amount: totalAmount, categoryId: incomeCategory.id, description: `Sale Invoice #${saleId}` }, tx);
 
                 if (customerId) {
-
                     await addObject(STORES.TRANSACTIONS, { entityId: customerId, entityType: 'customer', date: saleData.date, type: 'debit', amount: totalAmount, description: `Sale Invoice #${saleId}` }, tx);
                     await addObject(STORES.TRANSACTIONS, { entityId: customerId, entityType: 'customer', date: saleData.date, type: 'credit', amount: totalAmount, description: `Payment for Invoice #${saleId}` }, tx);
-
                 }
 
                 await new Promise(resolve => tx.oncomplete = resolve);
@@ -451,7 +469,6 @@
                     for (const entry of khataToDelete) {
                         await deleteObject(STORES.TRANSACTIONS, entry.id, tx);
                     }
-
                 }
 
                 await deleteObject(STORES.SALES, saleId, tx);
